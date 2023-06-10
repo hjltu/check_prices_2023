@@ -29,6 +29,7 @@ links:
 """
 
 
+import csv
 import json
 import requests
 from tabulate import tabulate
@@ -40,15 +41,15 @@ URL_OPEN_ACC = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.
 URL_GET_ACC = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.SandboxService/GetSandboxAccounts'
 URL_CLOSE_ACC = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.SandboxService/CloseSandboxAccount'
 URL_GET_SHARES = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.InstrumentsService/Shares'
-URL_GET_CANDLES = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.MarketDataService/GetCandles'
-URL_GET_PRICES = ''
+URL_GET_SHARES_CANDLES = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.MarketDataService/GetCandles'
+URL_GET_SHARES_LAST_PRICES = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.MarketDataService/GetLastPrices'
 CANDLES_INTERVAL = 'CANDLE_INTERVAL_DAY'
 
 
 class Client(object):
 
-
     def __init__(self, TOKEN):
+
         if TOKEN:
             print('Client init...')
             self.acc = None
@@ -93,7 +94,38 @@ class Client(object):
         return self.get_acc()
 
 
-    def get_shares(self):
+    def save_json(self, data, filename='data.json'):
+
+        with open(filename, 'w',  encoding='utf-8') as json_file:
+            json.dump(data, json_file, ensure_ascii=False, indent=4)
+
+        return True
+
+
+    def save_csv(self, data, filename='data.csv'):
+
+        with open(filename, 'w',  encoding='utf-8') as csv_file:
+            pass
+
+        return True
+
+
+    def _concat(self, units, nano):
+
+        """ nano length = 9 """
+
+        rank = 0.000000001
+
+        return int(units) + nano * rank
+
+
+class Shares(Client):
+
+    def __init__(self, TOKEN):
+
+        super().__init__(TOKEN)
+
+    def get_shares(self, filename=None):
 
         """
         request data:
@@ -110,17 +142,16 @@ class Client(object):
         data = {"instrumentStatus": "INSTRUMENT_STATUS_UNSPECIFIED"}
         all_shares = self.post_request(URL_GET_SHARES, headers=self.headers, data=data)
         print('Client: all shares length is:', len(all_shares.get('instruments')))
+
+        if filename:
+            self.save_json(all_shares, filename)
+
         return all_shares
 
 
     def get_my_shares(self, shares, tickers):
 
         """
-        sp = int(len(tickers)/3)
-        T1=tickers[:sp]; T2=tickers[sp:sp*2]; T3=tickers[sp*2:]
-        tickers=[]
-        for i in range(len(T1)):
-            tickers+=([T1[i]]+[T2[i]]+[T3[i]])
         """
 
         my_shares = []
@@ -159,13 +190,39 @@ class Client(object):
                 'interval': CANDLES_INTERVAL,
                 'instrumentId': s.get('uid')}
 
-            candles = self.post_request(URL_GET_CANDLES, headers=self.headers, data=data)
+            candles = self.post_request(URL_GET_SHARES_CANDLES, headers=self.headers, data=data)
             s.update(candles)
 
         return my_shares
 
 
     def get_prices(self, my_shares):
+
+        """
+        request body:
+            {
+            "figi": ["string"],
+            "instrumentId": ["string"]
+            } """
+
+        figi, uid = [], []
+
+        for s in my_shares[:]:
+            figi.append(s.get('figi'))
+            uid.append(s.get('uid'))
+
+        data = {
+                'figi': figi,
+                'instrumentId': uid}
+
+        prices = self.post_request(URL_GET_SHARES_LAST_PRICES, headers=self.headers, data=data)
+        #print(json.dumps(prices, indent=4))
+
+        for instrument in my_shares[:]:
+            for price in prices.get('lastPrices'):
+                if price.get('figi') == instrument.get('figi'):
+                    instrument.update({'last_price': price})
+
         return my_shares
 
 
@@ -185,15 +242,16 @@ class Client(object):
             for key, val in {'quart':quart, 'month':month, 'week':week}.items():
 
                 candles = instrument.get('candles')[-val:]
+                last_price = instrument.get('last_price')
                 lot = instrument.get('lot')
-                avearage.update(self._calc_avearage(key, candles, lot))
+                avearage.update(self._calc_avearage(key, candles, last_price, lot))
 
             instrument.update({'avearage': avearage})
 
         return my_candles
 
 
-    def _calc_avearage(self, name, candles, lot):
+    def _calc_avearage(self, name, candles, last_price, lot):
 
         prices = [ self._concat(c.get('close').get('units'), c.get('close').get('nano')) for c in candles]
 
@@ -202,21 +260,13 @@ class Client(object):
 
         avearage = mean(prices)
         close = self._concat(candles[-1:][0].get('close').get('units'), candles[-1:][0].get('close').get('nano'))
+        last_price = self._concat(last_price.get('price').get('units'), last_price.get('price').get('nano'))
         high = max(self._concat(c.get('high').get('units'), c.get('high').get('nano')) for c in candles)
         low = min(self._concat(c.get('low').get('units'), c.get('low').get('nano')) for c in candles)
         proc = round((close - avearage)/(avearage/100), 1)
         diff = round((high - low)/(avearage/100), 1)
 
-        return {'price': close * lot, name + '_proc': proc, name + '_diff': diff, name + '_avearage': avearage * lot}
-
-
-    def _concat(self, units, nano):
-
-        """ nano length = 9 """
-
-        rank = 0.000000001
-
-        return int(units) + nano * rank
+        return {'price': last_price * lot, name + '_proc': proc, name + '_diff': diff, name + '_avearage': avearage * lot}
 
 
     def print_table(self, my_shares):
