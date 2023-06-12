@@ -70,6 +70,13 @@ TICKERS_EN = [
     'XRX','ZYNE','ZYXI'
 ]
 
+TICKERS_PAIRS = [
+    'AMDRUB_TOM','KZTRUB_TOM','KGSRUB_TOM',
+    'UZSRUB_TOM','TJSRUB_TOM','TRYRUB_TOM',
+    'BYNRUB_TOM','HKDRUB_TOM','CNYRUB_TOM',
+    'USD000UTSTOM','GLDRUB_TOM','SLVRUB_TOM'
+]
+
 class Style():
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
@@ -101,7 +108,8 @@ class Style():
 
 ################################ TEST DATA #####################################
 
-TEST_TICKERS = ['FEES','ROLO','VTBR']
+TEST_SHARES_TICKERS = ['FEES','ROLO','VTBR']
+TEST_PAIRS_TICKERS = ['HKDRUB_TOM','SLVRUB_TOM','USD000UTSTOM']
 TEST_MARKET = ''
 TEST_DB = 'test.db'
 TEST_LOOP_INTERVAL = 9

@@ -30,8 +30,10 @@ links:
 
 
 import csv
+import time
 import json
 import requests
+from os.path import exists
 from tabulate import tabulate
 from statistics import median, mean
 from config import Style
@@ -41,8 +43,9 @@ URL_OPEN_ACC = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.
 URL_GET_ACC = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.SandboxService/GetSandboxAccounts'
 URL_CLOSE_ACC = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.SandboxService/CloseSandboxAccount'
 URL_GET_SHARES = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.InstrumentsService/Shares'
-URL_GET_SHARES_CANDLES = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.MarketDataService/GetCandles'
-URL_GET_SHARES_LAST_PRICES = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.MarketDataService/GetLastPrices'
+URL_GET_CANDLES = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.MarketDataService/GetCandles'
+URL_GET_LAST_PRICES = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.MarketDataService/GetLastPrices'
+URL_GET_CURRENCIES = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.InstrumentsService/Currencies'
 CANDLES_INTERVAL = 'CANDLE_INTERVAL_DAY'
 
 
@@ -94,38 +97,7 @@ class Client(object):
         return self.get_acc()
 
 
-    def save_json(self, data, filename='data.json'):
-
-        with open(filename, 'w',  encoding='utf-8') as json_file:
-            json.dump(data, json_file, ensure_ascii=False, indent=4)
-
-        return True
-
-
-    def save_csv(self, data, filename='data.csv'):
-
-        with open(filename, 'w',  encoding='utf-8') as csv_file:
-            pass
-
-        return True
-
-
-    def _concat(self, units, nano):
-
-        """ nano length = 9 """
-
-        rank = 0.000000001
-
-        return int(units) + nano * rank
-
-
-class Shares(Client):
-
-    def __init__(self, TOKEN):
-
-        super().__init__(TOKEN)
-
-    def get_shares(self, filename=None):
+    def get_all_instruments(self, url, filename=None):
 
         """
         request data:
@@ -140,33 +112,40 @@ class Shares(Client):
         """
 
         data = {"instrumentStatus": "INSTRUMENT_STATUS_UNSPECIFIED"}
-        all_shares = self.post_request(URL_GET_SHARES, headers=self.headers, data=data)
-        print('Client: all shares length is:', len(all_shares.get('instruments')))
+        all_instruments = self.post_request(url, headers=self.headers, data=data)
+        print('Client: all instruments length is:', len(all_instruments.get('instruments')))
 
         if filename:
-            self.save_json(all_shares, filename)
+            self.save_json(all_instruments, filename)
 
-        return all_shares
+        return all_instruments
 
 
-    def get_my_shares(self, shares, tickers):
+    def get_my_instruments(self, instruments, tickers):
 
         """
         """
 
-        my_shares = []
+        my_instruments = []
 
         for t in tickers:
-            for i in shares.get('instruments'):
+            for i in instruments.get('instruments'):
                 if t == i.get('ticker'):
-                    my_shares.append({'ticker': t, 'figi': i.get('figi'), 'uid': i.get('uid'), 'lot': i.get('lot')})
+                    my_instruments.append({
+                        'ticker': t,
+                        'figi': i.get('figi'),
+                        'uid': i.get('uid'),
+                        'lot': i.get('lot'),
+                        'nominal': self._concat(i.get('nominal').get('units'), i.get('nominal').get('nano'))
+                        })
 
-        print('Client: my shares length is:', len(my_shares))
-
-        return my_shares
+        print('Client: my instruments length is:', len(my_instruments))
 
 
-    def get_candles(self, my_shares, date_from, date_to):
+        return my_instruments
+
+
+    def get_candles(self, my_instruments, date_from, date_to):
 
         """
         Add candles to shares
@@ -181,7 +160,7 @@ class Shares(Client):
             }
         """
 
-        for s in my_shares[:]:
+        for s in my_instruments[:]:
 
             data = {
                 'figi': s.get('figi'),
@@ -190,13 +169,13 @@ class Shares(Client):
                 'interval': CANDLES_INTERVAL,
                 'instrumentId': s.get('uid')}
 
-            candles = self.post_request(URL_GET_SHARES_CANDLES, headers=self.headers, data=data)
+            candles = self.post_request(URL_GET_CANDLES, headers=self.headers, data=data)
             s.update(candles)
 
-        return my_shares
+        return my_instruments
 
 
-    def get_prices(self, my_shares):
+    def get_prices(self, my_prices):
 
         """
         request body:
@@ -207,7 +186,7 @@ class Shares(Client):
 
         figi, uid = [], []
 
-        for s in my_shares[:]:
+        for s in my_prices[:]:
             figi.append(s.get('figi'))
             uid.append(s.get('uid'))
 
@@ -215,15 +194,46 @@ class Shares(Client):
                 'figi': figi,
                 'instrumentId': uid}
 
-        prices = self.post_request(URL_GET_SHARES_LAST_PRICES, headers=self.headers, data=data)
+        prices = self.post_request(URL_GET_LAST_PRICES, headers=self.headers, data=data)
+
         #print(json.dumps(prices, indent=4))
 
-        for instrument in my_shares[:]:
+        for instrument in my_prices[:]:
             for price in prices.get('lastPrices'):
                 if price.get('figi') == instrument.get('figi'):
                     instrument.update({'last_price': price})
 
-        return my_shares
+        return my_prices
+
+
+    def is_file_exists(self, filename):
+
+        return exists(filename)
+
+
+    def save_json(self, data, filename='data.json', mode='w'):
+
+        with open(filename, mode,  encoding='utf-8') as json_file:
+            json.dump(data, json_file, ensure_ascii=False, indent=4)
+
+        return True
+
+
+    def save_csv(self, row, filename='data.csv', mode='w'):
+
+        with open(filename, mode,  encoding='utf-8') as csv_file:
+            csv_file.write(row)
+
+        return True
+
+
+    def _concat(self, units, nano):
+
+        """ nano length = 9 """
+
+        rank = 0.000000001
+
+        return int(units) + nano * rank
 
 
     def get_avearage(self, my_candles, quart: int, month: int, week: int):
@@ -244,34 +254,37 @@ class Shares(Client):
                 candles = instrument.get('candles')[-val:]
                 last_price = instrument.get('last_price')
                 lot = instrument.get('lot')
-                avearage.update(self._calc_avearage(key, candles, last_price, lot))
+                nominal = instrument.get('nominal')
+                avearage.update(self._calc_avearage(key, candles, last_price, lot, nominal))
 
             instrument.update({'avearage': avearage})
 
         return my_candles
 
 
-    def _calc_avearage(self, name, candles, last_price, lot):
+    def _calc_avearage(self, name, candles, last_price, lot, nominal):
 
-        prices = [ self._concat(c.get('close').get('units'), c.get('close').get('nano')) for c in candles]
+        close = self._concat(last_price.get('price').get('units'), last_price.get('price').get('nano'))
+        prices = [ self._concat(c.get('close').get('units'), c.get('close').get('nano')) for c in candles] + [close]
 
-        if len(prices) == 0:
-            return {'price': 0, name + '_proc': 0, name + '_diff': 0, name + '_avearage': 0}
+        avearage = median(prices)
 
-        avearage = mean(prices)
-        close = self._concat(candles[-1:][0].get('close').get('units'), candles[-1:][0].get('close').get('nano'))
-        last_price = self._concat(last_price.get('price').get('units'), last_price.get('price').get('nano'))
-        high = max(self._concat(c.get('high').get('units'), c.get('high').get('nano')) for c in candles)
-        low = min(self._concat(c.get('low').get('units'), c.get('low').get('nano')) for c in candles)
+        #close = self._concat(candles[-1:][0].get('close').get('units'), candles[-1:][0].get('close').get('nano'))
+        #close = self._concat(last_price.get('price').get('units'), last_price.get('price').get('nano'))
+        high = max([self._concat(c.get('high').get('units'), c.get('high').get('nano')) for c in candles] + [close])
+        low = min([self._concat(c.get('low').get('units'), c.get('low').get('nano')) for c in candles] + [close])
         proc = round((close - avearage)/(avearage/100), 1)
         diff = round((high - low)/(avearage/100), 1)
 
-        return {'price': last_price * lot, name + '_proc': proc, name + '_diff': diff, name + '_avearage': avearage * lot}
+        return {
+            'price': close * lot, name + '_proc': proc, name + '_diff': diff, name + '_avearage': avearage * lot}
 
 
     def print_table(self, my_shares):
 
         """ my_shares = ['ticker': str, 'avearage': {}] """
+
+        #print(json.dumps(my_shares, indent=4))
 
         _sum = 0.0
         line_color = Style.YELLOW
@@ -282,7 +295,14 @@ class Shares(Client):
         line = []
 
         for instrument in my_shares:
-            line += (self._get_instrument(instrument, line_color))
+
+            line += [
+                f"{line_color}  " + instrument.get('ticker'),
+                f"{instrument.get('avearage').get('price')}"[:7],
+                self._colorize(instrument.get('avearage').get('quart_proc'), instrument.get('avearage').get('quart_diff'), line_color, 33, 44),
+                self._colorize(instrument.get('avearage').get('month_proc'), instrument.get('avearage').get('month_diff'), line_color, 22, 33),
+                self._colorize(instrument.get('avearage').get('week_proc'), instrument.get('avearage').get('week_diff'), line_color)]
+
             count += 1
             _sum += instrument.get('avearage').get('price')
 
@@ -294,20 +314,8 @@ class Shares(Client):
                 line_color = Style.YELLOW if line_color is Style.WHITE else Style.WHITE
 
         print(tabulate(table), f"\n{Style.RESET}Sum =", int(_sum))
+
         return True
-
-
-    def _get_instrument(self, instrument, line_color):
-
-        if instrument.get('avearage').get('price'):
-            return [
-                f"{line_color}  " + instrument.get('ticker'),
-                f"{instrument.get('avearage').get('price')}"[:7],
-                self._colorize(instrument.get('avearage').get('quart_proc'), instrument.get('avearage').get('quart_diff'), line_color, 33, 44),
-                self._colorize(instrument.get('avearage').get('month_proc'), instrument.get('avearage').get('month_diff'), line_color, 22, 33),
-                self._colorize(instrument.get('avearage').get('week_proc'), instrument.get('avearage').get('week_diff'), line_color)]
-        else:
-            return [instrument.get('ticker'),'---','keine','daten','---']
 
 
     def _colorize(self, proc, diff, line_color, max_proc=11, max_diff=22):
@@ -329,9 +337,127 @@ class Shares(Client):
         return proc + '%' + diff
 
 
+    def save_avearages(self, my_shares, filename):
+
+        """ row format:
+        time, divider, ticker, data
+        """
+
+        divider = '#'
+        columns_name = 'epoch,time,#,ticker,price,quart_proc,quart_diff,month_proc,month_diff,week_proc,week_diff\n'
+        time_epoch = time.time()
+        time_str = time.strftime("%d%b%y_%H:%M")
+        row = [time_epoch, time_str]
+        _sum = 0
+
+        for instrument in my_shares:
+
+            data =[
+                divider, instrument.get('ticker'),
+                instrument.get('avearage').get('price'),
+                instrument.get('avearage').get('quart_proc'),
+                instrument.get('avearage').get('quart_diff'),
+                instrument.get('avearage').get('month_proc'),
+                instrument.get('avearage').get('month_diff'),
+                instrument.get('avearage').get('week_proc'),
+                instrument.get('avearage').get('week_diff')]
+
+            row.append(','.join(str(d) for d in data))
+            _sum += instrument.get('avearage').get('price')
+
+        if not self.is_file_exists(filename):
+            self.save_csv(columns_name, filename, mode='w')
+
+        self.save_csv(','.join(str(r) for r in row) + f',{_sum}\n', filename, mode='a')
+
+        return True
 
 
+class Shares(Client):
 
+    def __init__(self, TOKEN):
+
+        super().__init__(TOKEN)
+
+
+    def get_all(self, filename=None):
+
+        return self.get_all_instruments(URL_GET_SHARES, filename)
+
+
+class Currencies(Client):
+
+    def __init__(self, TOKEN):
+
+        super().__init__(TOKEN)
+
+
+    def get_all(self, filename=None):
+
+        return self.get_all_instruments(URL_GET_CURRENCIES, filename)
+
+
+    def _calc_avearage(self, name, candles, last_price, lot, nominal):
+
+        #print(json.dumps(candles, indent=4))
+
+        if last_price.get('price'):
+            close = self._concat(last_price.get('price').get('units'), last_price.get('price').get('nano'))
+        elif len(candles) > 0:
+            close = self._concat(candles[-1:][0].get('close').get('units'), candles[-1:][0].get('close').get('nano'))
+        else:
+            return {
+                'price': 0, name + '_proc': 0, name + '_diff': 0, name + '_avearage': 0}
+
+        prices = [ self._concat(c.get('close').get('units'), c.get('close').get('nano')) for c in candles] + [close]
+
+        avearage = median(prices)
+
+        high = max([self._concat(c.get('high').get('units'), c.get('high').get('nano')) for c in candles] + [close])
+        low = min([self._concat(c.get('low').get('units'), c.get('low').get('nano')) for c in candles] + [close])
+        proc = round((close - avearage)/(avearage/100), 1)
+        diff = round((high - low)/(avearage/100), 1)
+
+        return {
+            'price': close, name + '_proc': proc, name + '_diff': diff, name + '_avearage': avearage}
+
+
+    def print_table(self, my_shares):
+
+        """ my_shares = ['ticker': str, 'avearage': {}] """
+
+        #print(json.dumps(my_shares, indent=4))
+
+        _sum = 0.0
+        line_color = Style.YELLOW
+        count = 0
+        table = []
+        line = ['ticker', 'price', 'quart', 'month', 'week']*3
+        table.append(line)
+        line = []
+
+        for instrument in my_shares:
+
+            line += [
+                f"{line_color}" + f"{instrument.get('ticker')}"[:7],
+                f"{instrument.get('avearage').get('price')}"[:7],
+                self._colorize(instrument.get('avearage').get('quart_proc'), instrument.get('avearage').get('quart_diff'), line_color, 33, 44),
+                self._colorize(instrument.get('avearage').get('month_proc'), instrument.get('avearage').get('month_diff'), line_color, 22, 33),
+                self._colorize(instrument.get('avearage').get('week_proc'), instrument.get('avearage').get('week_diff'), line_color)]
+
+            count += 1
+            _sum += instrument.get('avearage').get('price')
+
+            if count % 3 == 0:
+
+                table.append(line)
+                line = []
+                count = 0
+                line_color = Style.YELLOW if line_color is Style.WHITE else Style.WHITE
+
+        print(tabulate(table), f"\n{Style.RESET}Sum =", int(_sum))
+
+        return True
 
 
 
