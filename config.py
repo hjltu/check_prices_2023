@@ -24,7 +24,11 @@
 import sys
 
 
+# sandbox token
 TOKEN = 'token'
+# real token
+TOKEN_REAL = 'token'
+ACCOUNT_ID = 'id'
 MARKET = ''
 DB = 'check.db'
 DIR_DATA = 'data'

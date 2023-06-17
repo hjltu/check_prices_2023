@@ -67,7 +67,7 @@ def main():
                 date_from = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=QUART)).strftime('%Y-%m-%dT%H:%M:%SZ')
                 date_to = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
                 print('Client: new date from:', date_from, 'to:', date_to)
-                my_candles = client.get_candles(my_shares, date_from, date_to)
+                my_candles = client.get_candles(my_instruments, date_from, date_to)
 
             my_prices = client.get_prices(my_candles)
             my_avearages = client.get_avearage(my_prices, QUART, MONTH, WEEK)

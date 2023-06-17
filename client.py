@@ -39,13 +39,21 @@ from statistics import median, mean
 from config import Style
 
 
-URL_OPEN_ACC = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.SandboxService/OpenSandboxAccount'
-URL_GET_ACC = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.SandboxService/GetSandboxAccounts'
-URL_CLOSE_ACC = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.SandboxService/CloseSandboxAccount'
+#sandbox
+URL_OPEN_SB_ACC = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.SandboxService/OpenSandboxAccount'
+URL_GET_SB_ACC = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.SandboxService/GetSandboxAccounts'
+URL_CLOSE_SB_ACC = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.SandboxService/CloseSandboxAccount'
+#users
+URL_GET_ACC = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.UsersService/GetAccounts'
+URL_GET_PORTFOLIO = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.OperationsService/GetPortfolio'
+#instruments
 URL_GET_SHARES = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.InstrumentsService/Shares'
+URL_GET_ETFS = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.InstrumentsService/Etfs'
+URL_GET_CURRENCIES = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.InstrumentsService/Currencies'
+URL_GET_ASSETS = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.InstrumentsService/GetAssets'
+#market
 URL_GET_CANDLES = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.MarketDataService/GetCandles'
 URL_GET_LAST_PRICES = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.MarketDataService/GetLastPrices'
-URL_GET_CURRENCIES = 'https://invest-public-api.tinkoff.ru/rest/tinkoff.public.invest.api.contract.v1.InstrumentsService/Currencies'
 CANDLES_INTERVAL = 'CANDLE_INTERVAL_DAY'
 
 
@@ -73,18 +81,21 @@ class Client(object):
             print('Client ERR:', code, response, e)
 
 
-    def open_acc(self):
+    def open_sb_acc(self):
 
         if not self.acc:
-            self.acc = self.post_request(URL_OPEN_ACC, headers=self.headers)
+            self.acc = self.post_request(URL_OPEN_SB_ACC, headers=self.headers)
         return self.acc
 
 
-    def get_acc(self):
-        return self.post_request(URL_GET_ACC, headers=self.headers)
+    def get_acc(self, sandbox=False):
+        if sandbox:
+            return self.post_request(URL_GET_SB_ACC, headers=self.headers)
+        else:
+            return self.post_request(URL_GET_ACC, headers=self.headers)
 
 
-    def close_acc(self):
+    def close_sb_acc(self):
 
         """
         request data:
@@ -92,12 +103,79 @@ class Client(object):
         """
 
         if self.acc:
-            self.post_request(URL_CLOSE_ACC, headers=self.headers, data=self.acc)
+            self.post_request(URL_CLOSE_SB_ACC, headers=self.headers, data=self.acc)
             self.acc = None
         return self.get_acc()
 
 
-    def get_all_instruments(self, url, filename=None):
+    def get_portfolio(self, acc_id, curr='USD'):
+
+        """ request body:
+                {"accountId": "string",
+                "currency": "RUB"}
+        """
+
+        data = {"accountId": acc_id, "currency": curr}
+
+        return self.post_request(URL_GET_PORTFOLIO, headers=self.headers, data=data)
+
+
+    def print_portfolio(self, portfolio: dict, assets=None,
+        shares=None, bonds=None, etfs=None, currencies=None, futures=None):
+
+
+        """ output:
+            title:
+                totals
+            row:
+                ticker, currency, price/average_price, quantity/lots, yield_by_lot, name
+        """
+
+        total_shares = self._concat(portfolio.get('totalAmountShares').get('units'), portfolio.get('totalAmountShares').get('nano'))
+        total_bonds = self._concat(portfolio.get('totalAmountBonds').get('units'), portfolio.get('totalAmountBonds').get('nano'))
+        total_etfs = self._concat(portfolio.get('totalAmountEtf').get('units'), portfolio.get('totalAmountEtf').get('nano'))
+        total_currencies = self._concat(portfolio.get('totalAmountCurrencies').get('units'), portfolio.get('totalAmountCurrencies').get('nano'))
+        total_futures = self._concat(portfolio.get('totalAmountFutures').get('units'), portfolio.get('totalAmountFutures').get('nano'))
+        total_sum = total_shares + total_bonds + total_etfs + total_currencies + total_futures
+        total_yield = self._concat(portfolio.get('expectedYield').get('units'), portfolio.get('expectedYield').get('nano'))
+
+        total = \
+            f'{Style.LIGHT_BLUE}{Style.BOLD}Total: shares: {total_shares:g},' + \
+            f' etfs: {total_etfs:g}, curr: {total_currencies:g}, Sum: {total_sum}, Yield: {total_yield:g}{Style.RESET}'
+        print(total)
+        self._sort_portfolio(assets, portfolio, 'usd')
+        self._sort_portfolio(assets, portfolio, 'rub')
+        self._sort_portfolio(assets, portfolio, 'hkd')
+        print(total)
+        return True
+
+
+    def _sort_portfolio(self, assets, portfolio, curr):
+
+        line_color = Style.YELLOW
+        table = [['ticker', 'quant', 'yield', 'price', 'average', 'name']]
+        assets = [ a for a in assets.get('assets') if a.get('instruments') ]
+
+        for a in assets:
+            for p in portfolio.get('positions'):
+                if a.get('instruments') and p.get('currentPrice').get('currency') == curr:
+                    for i in a.get('instruments'):
+                        if i.get('figi') == p.get('figi') and p.get('currentPrice').get('currency') == curr:
+                            row = [
+                                f'{line_color}' + i.get('ticker')[:6],
+                                p.get('quantity').get('units'),
+                                str(self._concat(p.get('expectedYield').get('units'), p.get('expectedYield').get('nano')))[:6],
+                                str(self._concat(p.get('currentPrice').get('units'), p.get('currentPrice').get('nano')))[:6],
+                                str(self._concat(p.get('averagePositionPrice').get('units'), p.get('averagePositionPrice').get('nano')))[:6],
+                                a.get('name')[:55] + f'{Style.RESET}']
+                            table.append(row)
+                            line_color = Style.YELLOW if line_color is Style.WHITE else Style.WHITE
+        print(tabulate(table))
+
+        return True
+
+
+    def get_all_instruments(self, url, filename=None, data=None):
 
         """
         request data:
@@ -111,9 +189,16 @@ class Client(object):
             }]
         """
 
-        data = {"instrumentStatus": "INSTRUMENT_STATUS_UNSPECIFIED"}
+        if not data:
+            data = {"instrumentStatus": "INSTRUMENT_STATUS_UNSPECIFIED"}
+
         all_instruments = self.post_request(url, headers=self.headers, data=data)
-        print('Client: all instruments length is:', len(all_instruments.get('instruments')))
+
+        if all_instruments.get('instruments'):
+            print('Client: all instruments length is:', len(all_instruments.get('instruments')))
+
+        if all_instruments.get('assets'):
+            print('Client: all assets length is:', len(all_instruments.get('assets')))
 
         if filename:
             self.save_json(all_instruments, filename)
@@ -264,7 +349,16 @@ class Client(object):
 
     def _calc_avearage(self, name, candles, last_price, lot, nominal):
 
-        close = self._concat(last_price.get('price').get('units'), last_price.get('price').get('nano'))
+        #close = self._concat(last_price.get('price').get('units'), last_price.get('price').get('nano'))
+
+        if last_price.get('price'):
+            close = self._concat(last_price.get('price').get('units'), last_price.get('price').get('nano'))
+        elif len(candles) > 0:
+            close = self._concat(candles[-1:][0].get('close').get('units'), candles[-1:][0].get('close').get('nano'))
+        else:
+            return {
+                'price': 0, name + '_proc': 0, name + '_diff': 0, name + '_avearage': 0}
+
         prices = [ self._concat(c.get('close').get('units'), c.get('close').get('nano')) for c in candles] + [close]
 
         avearage = median(prices)
@@ -373,14 +467,37 @@ class Client(object):
         return True
 
 
+    def get_all_shares(self, filename=None):
+
+        return self.get_all_instruments(URL_GET_SHARES, filename)
+
+
+    def get_all_currencies(self, filename=None):
+
+        return self.get_all_instruments(URL_GET_CURRENCIES, filename)
+
+
+    def get_all_etfs(self, filename=None):
+
+        return self.get_all_instruments(URL_GET_ETFS, filename)
+
+
+    def get_all_assets(self, filename=None):
+
+        data = {"instrumentType": "INSTRUMENT_TYPE_UNSPECIFIED"}
+
+        return self.get_all_instruments(URL_GET_ASSETS, filename, data)
+
+
 class Shares(Client):
 
     def __init__(self, TOKEN):
 
         super().__init__(TOKEN)
 
-
     def get_all(self, filename=None):
+
+        print('or use get_all_shares instead')
 
         return self.get_all_instruments(URL_GET_SHARES, filename)
 
@@ -393,6 +510,8 @@ class Currencies(Client):
 
 
     def get_all(self, filename=None):
+
+        print('or use get_all_shares instead')
 
         return self.get_all_instruments(URL_GET_CURRENCIES, filename)
 
@@ -439,7 +558,7 @@ class Currencies(Client):
         for instrument in my_shares:
 
             line += [
-                f"{line_color}" + f"{instrument.get('ticker')}"[:7],
+                f"{line_color}  " + f"{instrument.get('ticker')}"[:6],
                 f"{instrument.get('avearage').get('price')}"[:7],
                 self._colorize(instrument.get('avearage').get('quart_proc'), instrument.get('avearage').get('quart_diff'), line_color, 33, 44),
                 self._colorize(instrument.get('avearage').get('month_proc'), instrument.get('avearage').get('month_diff'), line_color, 22, 33),
