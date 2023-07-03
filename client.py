@@ -138,15 +138,18 @@ class Client(object):
         total_futures = self._concat(portfolio.get('totalAmountFutures').get('units'), portfolio.get('totalAmountFutures').get('nano'))
         total_sum = total_shares + total_bonds + total_etfs + total_currencies + total_futures
         total_yield = self._concat(portfolio.get('expectedYield').get('units'), portfolio.get('expectedYield').get('nano'))
+        rub_free = self._get_rub_free(portfolio)
 
         total = \
             f'{Style.LIGHT_BLUE}{Style.BOLD}Total: shares: {total_shares:g},' + \
-            f' etfs: {total_etfs:g}, curr: {total_currencies:g}, Sum: {total_sum}, Yield: {total_yield:g}{Style.RESET}'
+            f' etfs: {total_etfs:g}, curr: {total_currencies:g},' + \
+            f' Sum: {total_sum:g}, Rub: {rub_free:g}, Yield: {total_yield:g}{Style.RESET}'
+
         print(total)
         self._sort_portfolio(assets, portfolio, 'usd')
         self._sort_portfolio(assets, portfolio, 'rub')
         self._sort_portfolio(assets, portfolio, 'hkd')
-        print(total)
+        print(time.strftime("%d%b%y_%H:%M"), total)
         return True
 
 
@@ -173,6 +176,15 @@ class Client(object):
         print(tabulate(table))
 
         return True
+
+
+    def _get_rub_free(self, portfolio):
+
+        figi = "RUB000UTSTOM"
+
+        for p in portfolio.get('positions'):
+            if p.get('figi') == figi:
+                return self._concat(p.get('quantity').get('units'), p.get('quantity').get('nano'))
 
 
     def get_all_instruments(self, url, filename=None, data=None):
@@ -211,11 +223,18 @@ class Client(object):
         """
         """
 
+        print('Client: tickers length is:', len(tickers))
+
         my_instruments = []
 
         for t in tickers:
+
+            add = False
+
             for i in instruments.get('instruments'):
+
                 if t == i.get('ticker'):
+
                     my_instruments.append({
                         'ticker': t,
                         'figi': i.get('figi'),
@@ -223,6 +242,11 @@ class Client(object):
                         'lot': i.get('lot'),
                         'nominal': self._concat(i.get('nominal').get('units'), i.get('nominal').get('nano'))
                         })
+
+                    add = True
+
+            if not add: print('Client WARN:', t)
+
 
         print('Client: my instruments length is:', len(my_instruments))
 
@@ -384,7 +408,7 @@ class Client(object):
         line_color = Style.YELLOW
         count = 0
         table = []
-        line = ['ticker', 'price', 'quart', 'month', 'week']*3
+        line = ['ticker', 'price', 'long', 'mid', 'short']*3
         table.append(line)
         line = []
 
@@ -393,8 +417,8 @@ class Client(object):
             line += [
                 f"{line_color}  " + instrument.get('ticker'),
                 f"{instrument.get('avearage').get('price')}"[:7],
-                self._colorize(instrument.get('avearage').get('quart_proc'), instrument.get('avearage').get('quart_diff'), line_color, 33, 44),
-                self._colorize(instrument.get('avearage').get('month_proc'), instrument.get('avearage').get('month_diff'), line_color, 22, 33),
+                self._colorize(instrument.get('avearage').get('quart_proc'), instrument.get('avearage').get('quart_diff'), line_color, 66),
+                self._colorize(instrument.get('avearage').get('month_proc'), instrument.get('avearage').get('month_diff'), line_color, 44),
                 self._colorize(instrument.get('avearage').get('week_proc'), instrument.get('avearage').get('week_diff'), line_color)]
 
             count += 1
@@ -412,11 +436,11 @@ class Client(object):
         return True
 
 
-    def _colorize(self, proc, diff, line_color, max_proc=11, max_diff=22):
+    def _colorize(self, proc, diff, line_color, max_diff=22):
 
-        if proc > max_proc:
+        if proc > diff/2:
             proc = f'{Style.LIGHT_GREEN}{Style.BOLD}{proc:.0f}{Style.RESET}{line_color}'
-        elif proc < -max_proc:
+        elif proc < -(diff/2):
             proc = f'{Style.LIGHT_BLUE}{Style.BOLD}{proc:.0f}{Style.RESET}{line_color}'
         else:
             proc = f'{proc:.0f}'
@@ -438,7 +462,7 @@ class Client(object):
         """
 
         divider = '#'
-        columns_name = 'epoch,time,#,ticker,price,quart_proc,quart_diff,month_proc,month_diff,week_proc,week_diff\n'
+        columns_name = 'epoch,time,#,ticker,price,long_proc,long_diff,mid_proc,mid_diff,short_proc,short_diff\n'
         time_epoch = time.time()
         time_str = time.strftime("%d%b%y_%H:%M")
         row = [time_epoch, time_str]
@@ -551,7 +575,7 @@ class Currencies(Client):
         line_color = Style.YELLOW
         count = 0
         table = []
-        line = ['ticker', 'price', 'quart', 'month', 'week']*3
+        line = ['ticker', 'price', 'long', 'mid', 'short']*3
         table.append(line)
         line = []
 
@@ -560,8 +584,8 @@ class Currencies(Client):
             line += [
                 f"{line_color}  " + f"{instrument.get('ticker')}"[:6],
                 f"{instrument.get('avearage').get('price')}"[:7],
-                self._colorize(instrument.get('avearage').get('quart_proc'), instrument.get('avearage').get('quart_diff'), line_color, 33, 44),
-                self._colorize(instrument.get('avearage').get('month_proc'), instrument.get('avearage').get('month_diff'), line_color, 22, 33),
+                self._colorize(instrument.get('avearage').get('quart_proc'), instrument.get('avearage').get('quart_diff'), line_color, 66),
+                self._colorize(instrument.get('avearage').get('month_proc'), instrument.get('avearage').get('month_diff'), line_color, 44),
                 self._colorize(instrument.get('avearage').get('week_proc'), instrument.get('avearage').get('week_diff'), line_color)]
 
             count += 1

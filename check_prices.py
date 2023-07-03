@@ -53,7 +53,7 @@ def main():
     date = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     """
 
-    date_from = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=QUART)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    date_from = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=LONG)).strftime('%Y-%m-%dT%H:%M:%SZ')
     date_to = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
     print('Client: date from:', date_from, 'to:', date_to)
     client, TICKERS, curr = sort_tickers_list()
@@ -64,13 +64,13 @@ def main():
         try:
             date_check = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
             if date_check not in date_to:
-                date_from = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=QUART)).strftime('%Y-%m-%dT%H:%M:%SZ')
+                date_from = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=LONG)).strftime('%Y-%m-%dT%H:%M:%SZ')
                 date_to = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
                 print('Client: new date from:', date_from, 'to:', date_to)
                 my_candles = client.get_candles(my_instruments, date_from, date_to)
 
             my_prices = client.get_prices(my_candles)
-            my_avearages = client.get_avearage(my_prices, QUART, MONTH, WEEK)
+            my_avearages = client.get_avearage(my_prices, LONG, MID, SHORT)
             client.print_table(my_avearages)
             client.save_avearages(my_avearages, filename=f'{DIR_DATA}/avearage_{curr}.csv')
             try:
@@ -144,6 +144,9 @@ def sort_tickers_list(tickers=None):
     elif curr == 'pairs':
         client = Currencies(TOKEN)
         TICKERS = TICKERS_PAIRS
+    elif curr == 'quick':
+        client = Shares(TOKEN)
+        TICKERS = TICKERS_QUICK
     else:
         client = None
         curr = 'test'

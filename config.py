@@ -29,25 +29,26 @@ TOKEN = 'token'
 # real token
 TOKEN_REAL = 'token'
 ACCOUNT_ID = 'id'
+ACCOUNT_ID = '2018156097'
 MARKET = ''
 DB = 'check.db'
 DIR_DATA = 'data'
 DIR_PLOTS = 'plots'
 LOOP_INTERVAL = 9999
-QUART = 99
-MONTH = 33
-WEEK = 7
+LONG = 222
+MID = 55
+SHORT = 11
 
 TICKERS_RU = [
     'AFKS','AKRN','AGRO','APTK','AQUA','BANE','BANEP','BELU','BLNG',
     'CHMK','CIAN','CNTL','ENPG','ETLN',
-    'FEES','FESH','FIVE','FIXP','FLOT','GCHE','GEMC','GLTR','GMKN',
+    'FEES','FESH','FIVE','FIXP','FLOT','GAZP','GCHE','GEMC','GLTR','GMKN',
     'HYDR','IRAO','KAZT','KROT','KZOS','KZOSP','LENT','LIFE','LKOH','LSNG','LSRG',
-    'MAGN','MDMG','MGNT','MRKU','MOEX','MSRS','MSTT','MTLR','MTLRP','MVID',
+    'MAGN','MDMG','MGNT','MRKU','MOEX','MSRS','MSTT','MTLR','MTLRP','MTSS','MVID',
     'NKHP','NLMK','NVTK',
     'OKEY','OZON','PLZL','PMSB','PMSBP','POLY','PRFN',
-    'ROLO','RUAL','SFIN','SGZH','SPBE','SVAV',
-    'TATN','TATNP','TCSG','TRMK','QIWI','VEON','VTBR','UNKL','UWGN','UPRO','YAKG','YNDX'
+    'ROLO','RUAL','SBER','SFIN','SGZH','SPBE','SVAV',
+    'TATN','TATNP','TCSG','TRMK','QIWI','VEON-RX','VTBR','UNKL','UWGN','UPRO','YAKG','YNDX'
 ]
 
 TICKERS_CN = [
@@ -58,18 +59,18 @@ TICKERS_CN = [
 ]
 
 TICKERS_EN = [
-    'AAL','AAN','AES','AMCR','AOUT','APPH','ARVL','ASTR','ATRO','ATUS','AWH',
+    'AAL','AES','AMCR','APPH','ARVL','ASTR','ATRO','ATUS','AWH',
     'BZUN',
-    'CEA','CCJ','CCL','CGEN','CLDT','CLF','CLSK','CNP','CORR','CPB','CPNG',
+    'CCJ','CCL','CGEN','CLDT','CLF','CLSK','CNP','CORR','CPB','CPNG',
     'DM','DNOW','EAR','ET','ETRN',
     'F','FCEL','FLR','FSLR','FTCI',
     'GE','GEVO','GOLD','GPS','GT','GTX',
-    'HAL','HBI','HPE','HSC','HYLN','INSG',
+    'HAL','HBI','HPE','HYLN','INSG',
     'KEP','KMI','KOPN','LAZR','LPL','LTHM','LUMN',
-    'M','MAC','MFGP','MRC','MEI','MLCO','NOK','NU',
-    'OI','OII','OIS','PAAS','PAGS','PBI','PPL','PSTG','RIG','RKLB','RUN',
-    'SJI','SKLZ','SLDB','STLA','SWBI','SWI','SWN','TAK','TAL','T','TDS','TTMI','QUOT',
-    'UA','UBS','VALE','VTRS','VEON','VIPS','VLDR','VMEO','VUZI','VXRT',
+    'M','MAC','MRC','MEI','MLCO','NOK','NU',
+    'OI','OII','OIS','OSUR','OUST','PAAS','PAGS','PBI','PPL','PSTG','RIG','RKLB','RUN',
+    'SKLZ','STLA','SWI','SWN','TAK','TAL','T','TDS','TTMI','QUOT',
+    'UA','UBS','VALE','VTRS','VEON','VIPS','VMEO','VUZI','VXRT',
     'WBD','WISH','WKHS','WTTR','WU',
     'XRX','ZYNE','ZYXI'
 ]
@@ -79,6 +80,10 @@ TICKERS_PAIRS = [
     'UZSRUB_TOM','TJSRUB_TOM','TRYRUB_TOM',
     'BYNRUB_TOM','HKDRUB_TOM','CNYRUB_TOM',
     'USD000UTSTOM','GLDRUB_TOM','SLVRUB_TOM'
+]
+
+TICKERS_QUICK = [
+    'APTK','ETLN','FIXP','MTLR','MVID','OKEY','SPBE','UWGN','KZOSP',
 ]
 
 class Style():
@@ -112,7 +117,7 @@ class Style():
 
 ################################ TEST DATA #####################################
 
-TEST_SHARES_TICKERS = ['FEES','ROLO','VTBR']
+TEST_SHARES_TICKERS = ['APTK','TEST','FEES','ROLO','VTBR','TEST']
 TEST_PAIRS_TICKERS = ['HKDRUB_TOM','SLVRUB_TOM','USD000UTSTOM']
 TEST_MARKET = ''
 TEST_DB = 'test.db'

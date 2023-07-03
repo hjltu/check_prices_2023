@@ -49,9 +49,13 @@ def main():
     """
     """
 
+    client = Client(TOKEN_REAL)
+    all_assets = client.get_all_assets()
+
     while True:
         try:
-            pass
+            portfolio = client.get_portfolio(ACCOUNT_ID)
+            client.print_portfolio(portfolio, assets=all_assets)
             try:
                 sleep(LOOP_INTERVAL)
             except KeyboardInterrupt:
