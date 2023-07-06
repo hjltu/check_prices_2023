@@ -156,7 +156,7 @@ class Client(object):
     def _sort_portfolio(self, assets, portfolio, curr):
 
         line_color = Style.YELLOW
-        table = [['ticker', 'quant', 'yield', 'price', 'average', 'name']]
+        table = []
         assets = [ a for a in assets.get('assets') if a.get('instruments') ]
 
         for a in assets:
@@ -165,15 +165,24 @@ class Client(object):
                     for i in a.get('instruments'):
                         if i.get('figi') == p.get('figi') and p.get('currentPrice').get('currency') == curr:
                             row = [
-                                f'{line_color}' + i.get('ticker')[:6],
+                                i.get('ticker')[:6],
                                 p.get('quantity').get('units'),
                                 str(self._concat(p.get('expectedYield').get('units'), p.get('expectedYield').get('nano')))[:6],
                                 str(self._concat(p.get('currentPrice').get('units'), p.get('currentPrice').get('nano')))[:6],
                                 str(self._concat(p.get('averagePositionPrice').get('units'), p.get('averagePositionPrice').get('nano')))[:6],
-                                a.get('name')[:55] + f'{Style.RESET}']
+                                a.get('name')[:55]]
                             table.append(row)
-                            line_color = Style.YELLOW if line_color is Style.WHITE else Style.WHITE
-        print(tabulate(table))
+
+        # sort, colorize
+        table = sorted(table, key=lambda row: row[0])
+        for t in table:
+            t[0] = f'{line_color}' + t[0]
+            t[len(t)-1] += f'{Style.RESET}'
+            line_color = Style.YELLOW if line_color is Style.WHITE else Style.WHITE
+
+        table.insert(0, ['ticker', 'quant', 'yield', 'price', 'average', 'name'])
+
+        print(f'{Style.RESET}', tabulate(table), f'{Style.RESET}')
 
         return True
 
