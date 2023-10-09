@@ -51,6 +51,8 @@ def main():
 
     client = Client(TOKEN_REAL)
     all_assets = client.get_all_assets()
+    if not all_assets:
+        return
 
     while True:
         try:

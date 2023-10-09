@@ -69,9 +69,10 @@ class Client(object):
 
     def post_request(self, url, headers={}, data={}):
 
-        code, response = None, None
+        code, response = 'No_code', 'No_response'
         try:
-            res = requests.post(url, headers=headers, data=json.dumps(data, indent=4))
+            res = requests.post(url, headers=headers, data=json.dumps(data))
+            #print(dir(res), res.text)
             code, response = res.status_code, json.loads(res.text)
             if code == 200:
                 return response
@@ -157,6 +158,7 @@ class Client(object):
 
         line_color = Style.YELLOW
         table = []
+        sprice, savearage, _sum, syield = 0, 0, 0, 0
         assets = [ a for a in assets.get('assets') if a.get('instruments') ]
 
         for a in assets:
@@ -164,14 +166,23 @@ class Client(object):
                 if a.get('instruments') and p.get('currentPrice').get('currency') == curr:
                     for i in a.get('instruments'):
                         if i.get('figi') == p.get('figi') and p.get('currentPrice').get('currency') == curr:
+                            price = self._concat(p.get('currentPrice').get('units'), p.get('currentPrice').get('nano'))
+                            avearage = self._concat(p.get('averagePositionPrice').get('units'), p.get('averagePositionPrice').get('nano'))
+                            amount = int(p.get('quantity').get('units')) * self._concat(p.get('currentPrice').get('units'), p.get('currentPrice').get('nano'))
+                            _yield = self._concat(p.get('expectedYield').get('units'), p.get('expectedYield').get('nano'))
                             row = [
                                 i.get('ticker')[:6],
                                 p.get('quantity').get('units'),
-                                str(self._concat(p.get('expectedYield').get('units'), p.get('expectedYield').get('nano')))[:6],
-                                str(self._concat(p.get('currentPrice').get('units'), p.get('currentPrice').get('nano')))[:6],
-                                str(self._concat(p.get('averagePositionPrice').get('units'), p.get('averagePositionPrice').get('nano')))[:6],
+                                f'{_yield:g}',
+                                f'{price:g}',
+                                f'{avearage:g}',
+                                f'{amount:g}',
                                 a.get('name')[:55]]
                             table.append(row)
+                            sprice += price
+                            savearage += avearage
+                            _sum += amount
+                            syield += _yield
 
         # sort, colorize
         table = sorted(table, key=lambda row: row[0])
@@ -180,7 +191,8 @@ class Client(object):
             t[len(t)-1] += f'{Style.RESET}'
             line_color = Style.YELLOW if line_color is Style.WHITE else Style.WHITE
 
-        table.insert(0, ['ticker', 'quant', 'yield', 'price', 'average', 'name'])
+        table.insert(0, ['ticker', 'quant', 'yield', 'price', 'average', 'sum', 'name'])
+        table.append([f'{curr}','',f'{syield:g}',f'{sprice:g}',f'{savearage:g}', f'{_sum:g}',f''])
 
         print(f'{Style.RESET}', tabulate(table), f'{Style.RESET}')
 
@@ -440,7 +452,7 @@ class Client(object):
                 count = 0
                 line_color = Style.YELLOW if line_color is Style.WHITE else Style.WHITE
 
-        print(tabulate(table), f"\n{Style.RESET}Sum =", int(_sum))
+        print(tabulate(table), f'{Style.RESET}\n{time.strftime("%d%b%y_%H:%M")}  Sum = {int(_sum)}')
 
         return True
 
@@ -607,7 +619,7 @@ class Currencies(Client):
                 count = 0
                 line_color = Style.YELLOW if line_color is Style.WHITE else Style.WHITE
 
-        print(tabulate(table), f"\n{Style.RESET}Sum =", int(_sum))
+        print(tabulate(table), f'{Style.RESET}\n{time.strftime("%d%b%y_%H:%M")}  Sum = {int(_sum)}')
 
         return True
 
